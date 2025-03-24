@@ -17,7 +17,7 @@ st.markdown("Enter your query below and get intelligent responses based on the u
 # Load Model and Tokenizer
 @st.cache_resource
 def load_model():
-    model_name = "meta-llama/Llama-3.2-3B"
+    model_name = "meta-llama/Llama-3-8B"
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     model = AutoModelForCausalLM.from_pretrained(model_name, torch_dtype=torch.float16, device_map="auto")
     return model, tokenizer
