@@ -1,6 +1,8 @@
 streamlit
 transformers
 torch
+torchvision
+torchaudio
 langchain
 langchain-community
 faiss-cpu
