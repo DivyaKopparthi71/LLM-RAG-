@@ -17,7 +17,7 @@ os.environ["HF_HOME"] = "/home/adminuser/.cache/huggingface"
 os.environ["HF_TOKEN"] = HUGGINGFACE_TOKEN
 
 # Load Model & Tokenizer
-MODEL_NAME = "meta-llama/Llama-3-8B-Instruct"  # Check if this exists
+MODEL_NAME = "meta-llama/Llama-3.2-3B"  # Check if this exists
 try:
     tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
     model = AutoModelForCausalLM.from_pretrained(MODEL_NAME, torch_dtype=torch.float16)
