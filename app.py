@@ -12,7 +12,7 @@ import asyncio
 asyncio.set_event_loop(asyncio.new_event_loop())
 
 # Hugging Face Authentication (if private model)
-HUGGINGFACE_TOKEN = "your_huggingface_token"
+HUGGINGFACE_TOKEN = "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"
 os.environ["HF_HOME"] = "/home/adminuser/.cache/huggingface"
 os.environ["HF_TOKEN"] = HUGGINGFACE_TOKEN
 
