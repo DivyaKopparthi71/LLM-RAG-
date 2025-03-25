@@ -1,33 +1,95 @@
 import os
+import pickle
 import torch
 import streamlit as st
-from transformers import AutoTokenizer, AutoModelForCausalLM
+from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
+from langchain.vectorstores import FAISS
+from langchain.embeddings import HuggingFaceEmbeddings
+from langchain.chains import RetrievalQA
+from langchain_huggingface import HuggingFacePipeline
 
-# Hugging Face Authentication
-HUGGINGFACE_TOKEN = "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 "  # Replace with your actual token
+# Set Streamlit Page Config
+st.set_page_config(page_title="LLaMA-3.2 Chatbot", page_icon="🤖", layout="wide")
+
+# Hugging Face Authentication (if needed)
+HUGGINGFACE_TOKEN = "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"
 os.environ["HF_TOKEN"] = HUGGINGFACE_TOKEN
 
-# Load a Smaller LLaMA Model (8B version)
-MODEL_NAME = "meta-llama/Meta-Llama-3.2-3B"
+# Title and Styling
+st.markdown(
+    """
+    <h1 style="text-align:center; color:#4CAF50;">🦙 LLaMA-3.2 Chatbot with RAG</h1>
+    <p style="text-align:center;">Ask any question and get intelligent responses from LLaMA 3.2!</p>
+    """,
+    unsafe_allow_html=True,
+)
 
-# Check if GPU is available
+# Load Model & Tokenizer
+MODEL_NAME = "meta-llama/Llama-3.2-3B"
 device = "cuda" if torch.cuda.is_available() else "cpu"
-dtype = torch.float16 if device == "cuda" else torch.float32  # Use float16 for GPU, float32 for CPU
 
-try:
+@st.cache_resource()
+def load_model():
     tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
     model = AutoModelForCausalLM.from_pretrained(
-        MODEL_NAME, torch_dtype=dtype, device_map="auto"
+        MODEL_NAME, torch_dtype=torch.float16, device_map="auto"
     )
-except Exception as e:
-    st.error(f"Error loading model: {e}")
-    st.stop()
+    return tokenizer, model
 
-# Streamlit UI
-st.title("LLaMA-3 Chatbot")
-query = st.text_input("Enter your question:")
-if query:
-    inputs = tokenizer(query, return_tensors="pt").to(device)
-    outputs = model.generate(**inputs)
-    response = tokenizer.decode(outputs[0], skip_special_tokens=True)
-    st.write(response)
+tokenizer, model = load_model()
+
+# Load FAISS Index & Embeddings
+@st.cache_resource()
+def load_faiss():
+    embedding_model = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
+    vector_store = FAISS.load_local("faiss_index", embeddings=embedding_model, allow_dangerous_deserialization=True)
+    return vector_store
+
+vector_store = load_faiss()
+retriever = vector_store.as_retriever(search_kwargs={"k": 10})  # Limit retrieved docs
+
+# Define LLM Pipeline
+llm_pipeline = pipeline(
+    "text-generation",
+    model=model,
+    tokenizer=tokenizer,
+    max_new_tokens=100,
+    truncation=True,
+    do_sample=True,
+    temperature=0.7,
+    pad_token_id=tokenizer.eos_token_id
+)
+
+# Define RAG Chain
+rag_chain = RetrievalQA.from_chain_type(
+    llm=HuggingFacePipeline(pipeline=llm_pipeline),
+    retriever=retriever
+)
+
+# Query Input
+query = st.text_input("🔍 Ask your question:", placeholder="E.g., What are Consumer Benefits?")
+
+if st.button("Generate Response"):
+    if query:
+        with st.spinner("🤖 Generating response..."):
+            response = rag_chain.invoke(query)
+            formatted_output = response['result'].replace("•", "-").replace("\n\n", "\n").strip()
+            
+            # Display response
+            st.markdown(
+                f"""
+                <div style="background:#f9f9f9; padding:15px; border-radius:10px;">
+                <h4 style="color:#333;">💡 Answer:</h4>
+                <p>{formatted_output}</p>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+
+            # Save output as a .pkl file
+            with open("formatted_output.pkl", "wb") as f:
+                pickle.dump(formatted_output, f)
+
+            st.success("✅ Response saved successfully in `formatted_output.pkl`")
+    else:
+        st.warning("⚠️ Please enter a question before generating a response.")
