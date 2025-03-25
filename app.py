@@ -15,23 +15,23 @@ st.set_page_config(page_title="PDF AI Assistant", layout="wide")
 st.title("📘 AI-Powered PDF Assistant")
 st.markdown("Upload a PDF and enter your query below.")
 
-# Hugging Face authentication (uncomment if using a private model)
-# os.environ["HF_TOKEN"] = "your_huggingface_token"
-
 # Load Model and Tokenizer
 @st.cache_resource
 def load_model():
-    model_name = "meta-llama/Llama-3.2-3B"  # Ensure this is the correct model
-    tokenizer = AutoTokenizer.from_pretrained(model_name, use_auth_token=True)
-    model = AutoModelForCausalLM.from_pretrained(model_name, torch_dtype=torch.float16, device_map="auto")
-    return model, tokenizer
+    model_name = "meta-llama/Llama-3B-Instruct"  # Ensure correct model
+    try:
+        tokenizer = AutoTokenizer.from_pretrained(model_name)
+        model = AutoModelForCausalLM.from_pretrained(model_name, torch_dtype=torch.float16, device_map="auto")
+        return model, tokenizer
+    except Exception as e:
+        st.error(f"Error loading model: {e}")
+        return None, None
 
-try:
-    model, tokenizer = load_model()
-    st.success("Llama 3 Model Loaded Successfully!")
-except Exception as e:
-    st.error(f"Error loading model: {e}")
+model, tokenizer = load_model()
+if model is None or tokenizer is None:
     st.stop()
+
+st.success("Llama 3 Model Loaded Successfully!")
 
 # File Uploader
 uploaded_file = st.file_uploader("Upload PDF", type=["pdf"])
@@ -50,12 +50,13 @@ if uploaded_file is not None:
 
     # Convert documents into embeddings
     embedding_model = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
+    index_path = "faiss_index"
 
-    if os.path.exists("faiss_index"):
-        vector_store = FAISS.load_local("faiss_index", embedding_model)
+    if os.path.exists(index_path):
+        vector_store = FAISS.load_local(index_path, embedding_model)
     else:
         vector_store = FAISS.from_documents(docs, embedding_model)
-        vector_store.save_local("faiss_index")
+        vector_store.save_local(index_path)
 
     retriever = vector_store.as_retriever(search_kwargs={"k": 10})
 
@@ -65,7 +66,6 @@ if uploaded_file is not None:
         model=model,
         tokenizer=tokenizer,
         max_new_tokens=100,
-        truncation=True,
         do_sample=True,
         temperature=0.7,
         pad_token_id=tokenizer.eos_token_id
