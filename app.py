@@ -4,11 +4,11 @@ import streamlit as st
 from transformers import AutoTokenizer, AutoModelForCausalLM
 
 # Hugging Face Authentication
-HUGGINGFACE_TOKEN = "your_hf_token"  # Replace with your actual token
+HUGGINGFACE_TOKEN = "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 "  # Replace with your actual token
 os.environ["HF_TOKEN"] = HUGGINGFACE_TOKEN
 
 # Load a Smaller LLaMA Model (8B version)
-MODEL_NAME = "meta-llama/Meta-Llama-3-8B"
+MODEL_NAME = "meta-llama/Meta-Llama-3.2-3B"
 
 # Check if GPU is available
 device = "cuda" if torch.cuda.is_available() else "cpu"
