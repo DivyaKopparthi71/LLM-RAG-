@@ -10,19 +10,24 @@ from langchain.text_splitter import RecursiveCharacterTextSplitter
 
 # Set Page Title
 st.set_page_config(page_title="PDF Text Extractor & Search", layout="wide")
-st.title("📄 PDF Text Extractor & Search with Llama 3.2")
+st.title("📄 PDF Text Extractor & Search")
 
-# Load Model
+# Use a smaller model for Streamlit Cloud
+MODEL_NAME = "facebook/opt-1.3b"
+
 @st.cache_resource()
 def load_model():
-    model_name = "meta-llama/Meta-Llama-3-8B"
-    tokenizer = AutoTokenizer.from_pretrained(model_name)
-    model = AutoModelForCausalLM.from_pretrained(
-        model_name,
-        torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32,
-        device_map="auto"
-    )
-    return tokenizer, model
+    try:
+        tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME, trust_remote_code=True)
+        model = AutoModelForCausalLM.from_pretrained(
+            MODEL_NAME,
+            torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32,
+            device_map="auto"
+        )
+        return tokenizer, model
+    except Exception as e:
+        st.error(f"Failed to load model: {e}")
+        return None, None
 
 tokenizer, model = load_model()
 
@@ -30,7 +35,6 @@ tokenizer, model = load_model()
 uploaded_file = st.file_uploader("Upload a PDF", type="pdf")
 
 if uploaded_file:
-    # Extract text from PDF
     def extract_text_from_pdf(pdf_file):
         reader = pypdf.PdfReader(pdf_file)
         return "".join(page.extract_text() or "" for page in reader.pages)
@@ -39,17 +43,14 @@ if uploaded_file:
     st.subheader("Extracted Text:")
     st.text_area("PDF Content", pdf_text, height=300)
 
-    # Load embeddings model
+    # Use embeddings only (not full LLM inference)
     embedding_model = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
     
-    # Split text into chunks
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=100)
     docs = text_splitter.split_text(pdf_text)
-    
-    # Store in FAISS
+
     vector_store = FAISS.from_texts(docs, embedding_model)
 
-    # Save FAISS Index
     index_path = "faiss_index"
     vector_store.save_local(index_path)
     st.success("PDF content indexed successfully!")
