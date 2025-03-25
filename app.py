@@ -7,11 +7,13 @@ from langchain.vectorstores import FAISS
 from langchain.embeddings import HuggingFaceEmbeddings
 from langchain.chains import RetrievalQA
 from langchain_huggingface import HuggingFacePipeline
+from langchain.text_splitter import CharacterTextSplitter
+from langchain.docstore.document import Document
 
 # Set Streamlit Page Config
 st.set_page_config(page_title="LLaMA-3.2 Chatbot", page_icon="🤖", layout="wide")
 
-# Hugging Face Authentication (if needed)
+# Hugging Face Authentication (optional: replace with st.secrets)
 HUGGINGFACE_TOKEN = "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"
 os.environ["HF_TOKEN"] = HUGGINGFACE_TOKEN
 
@@ -34,18 +36,45 @@ def load_model():
     model = AutoModelForCausalLM.from_pretrained(
         MODEL_NAME, torch_dtype=torch.float16, device_map="auto"
     )
+    
+    # Set padding token if missing
+    if tokenizer.pad_token is None:
+        tokenizer.pad_token = tokenizer.eos_token
+    
     return tokenizer, model
 
 tokenizer, model = load_model()
 
 # Load FAISS Index & Embeddings
 @st.cache_resource()
-def load_faiss():
+def load_or_create_faiss():
+    faiss_index_dir = "faiss_index"
+    faiss_index_path = os.path.join(faiss_index_dir, "index.faiss")
     embedding_model = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
-    vector_store = FAISS.load_local("faiss_index", embeddings=embedding_model, allow_dangerous_deserialization=True)
+
+    # Check if FAISS index exists
+    if os.path.exists(faiss_index_path):
+        vector_store = FAISS.load_local(faiss_index_dir, embeddings=embedding_model, allow_dangerous_deserialization=True)
+    else:
+        # If FAISS index is missing, create a new one
+        st.warning("⚠️ FAISS index not found. Creating a new one...")
+
+        # Example documents (Replace this with actual data)
+        documents = [
+            Document(page_content="Consumer benefits refer to advantages that customers receive from a product."),
+            Document(page_content="Artificial Intelligence is transforming various industries with automation."),
+        ]
+
+        text_splitter = CharacterTextSplitter(chunk_size=500, chunk_overlap=100)
+        docs = text_splitter.split_documents(documents)
+
+        vector_store = FAISS.from_documents(docs, embedding_model)
+        os.makedirs(faiss_index_dir, exist_ok=True)
+        vector_store.save_local(faiss_index_dir)
+
     return vector_store
 
-vector_store = load_faiss()
+vector_store = load_or_create_faiss()
 retriever = vector_store.as_retriever(search_kwargs={"k": 10})  # Limit retrieved docs
 
 # Define LLM Pipeline
@@ -74,7 +103,7 @@ if st.button("Generate Response"):
         with st.spinner("🤖 Generating response..."):
             response = rag_chain.invoke(query)
             formatted_output = response['result'].replace("•", "-").replace("\n\n", "\n").strip()
-            
+
             # Display response
             st.markdown(
                 f"""
