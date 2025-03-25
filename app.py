@@ -4,7 +4,7 @@ import streamlit as st
 from transformers import AutoTokenizer, AutoModelForCausalLM
 
 # Hugging Face Authentication
-HUGGINGFACE_TOKEN = "your_correct_hf_token"
+HUGGINGFACE_TOKEN = "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 "
 os.environ["HF_HOME"] = "/home/adminuser/.cache/huggingface"
 os.environ["HF_TOKEN"] = HUGGINGFACE_TOKEN
 
