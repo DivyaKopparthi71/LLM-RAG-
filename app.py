@@ -21,7 +21,7 @@ st.markdown("Upload a PDF and enter your query below.")
 # Load Model and Tokenizer
 @st.cache_resource
 def load_model():
-    model_name = "meta-llama/Llama-3-8B"  # Ensure this is the correct model
+    model_name = "meta-llama/Llama-3.2-3B"  # Ensure this is the correct model
     tokenizer = AutoTokenizer.from_pretrained(model_name, use_auth_token=True)
     model = AutoModelForCausalLM.from_pretrained(model_name, torch_dtype=torch.float16, device_map="auto")
     return model, tokenizer
