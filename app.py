@@ -1,6 +1,7 @@
 import streamlit as st
 import pickle
 import torch
+import os
 from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
 from langchain.document_loaders import PyPDFLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
@@ -8,23 +9,29 @@ from langchain.vectorstores import FAISS
 from langchain.embeddings import HuggingFaceEmbeddings
 from langchain.chains import RetrievalQA
 from langchain_huggingface import HuggingFacePipeline
-import os
 
 # Set page config
 st.set_page_config(page_title="PDF AI Assistant", layout="wide")
 st.title("📘 AI-Powered PDF Assistant")
 st.markdown("Upload a PDF and enter your query below.")
 
+# Hugging Face authentication (uncomment if using a private model)
+# os.environ["HF_TOKEN"] = "your_huggingface_token"
+
 # Load Model and Tokenizer
 @st.cache_resource
 def load_model():
-    model_name = "meta-llama/Llama-3-8B-Instruct"  # Ensure this model exists
-    tokenizer = AutoTokenizer.from_pretrained(model_name)
+    model_name = "meta-llama/Llama-3-8B"  # Ensure this is the correct model
+    tokenizer = AutoTokenizer.from_pretrained(model_name, use_auth_token=True)
     model = AutoModelForCausalLM.from_pretrained(model_name, torch_dtype=torch.float16, device_map="auto")
     return model, tokenizer
 
-model, tokenizer = load_model()
-st.success("Llama 3 Model Loaded Successfully!")
+try:
+    model, tokenizer = load_model()
+    st.success("Llama 3 Model Loaded Successfully!")
+except Exception as e:
+    st.error(f"Error loading model: {e}")
+    st.stop()
 
 # File Uploader
 uploaded_file = st.file_uploader("Upload PDF", type=["pdf"])
@@ -75,12 +82,15 @@ if uploaded_file is not None:
 
     if st.button("Get Response"):
         with st.spinner("Processing..."):
-            response = rag_chain.invoke(query)
-            formatted_output = response['result'].replace("•", "-").replace("\n\n", "\n").strip()
+            try:
+                response = rag_chain.invoke(query)
+                formatted_output = response['result'].replace("•", "-").replace("\n\n", "\n").strip()
 
-            # Save response
-            with open("formatted_output.pkl", "wb") as f:
-                pickle.dump(formatted_output, f)
+                # Save response
+                with open("formatted_output.pkl", "wb") as f:
+                    pickle.dump(formatted_output, f)
 
-            st.subheader("📜 Response:")
-            st.success(formatted_output)
+                st.subheader("📜 Response:")
+                st.success(formatted_output)
+            except Exception as e:
+                st.error(f"Error generating response: {e}")
