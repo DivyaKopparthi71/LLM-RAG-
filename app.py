@@ -1,43 +1,59 @@
 import streamlit as st
-import asyncio
-from langchain_community.vectorstores import FAISS
-from langchain_community.embeddings import HuggingFaceEmbeddings
-import faiss
+import torch
+from transformers import pipeline
+from langchain.embeddings import HuggingFaceEmbeddings
+from langchain.vectorstores import FAISS
+from sentence_transformers import SentenceTransformer
+import pypdf
 import os
 
-# Ensure the event loop is handled properly
-try:
-    asyncio.get_running_loop()
-except RuntimeError:
-    asyncio.run(asyncio.sleep(0))
+# Set Page Title
+st.set_page_config(page_title="PDF Text Extractor & Search", layout="wide")
 
-# Streamlit App Title
-st.title("LangChain FAISS Search Demo")
+# Title
+st.title("📄 PDF Text Extractor & Search")
 
-# Load FAISS index
-INDEX_PATH = "faiss_index/index.faiss"
+# File Upload
+uploaded_file = st.file_uploader("Upload a PDF", type="pdf")
 
-if os.path.exists(INDEX_PATH):
-    st.success("FAISS index found. Loading...")
-    index = faiss.read_index(INDEX_PATH)
-else:
-    st.warning("FAISS index not found. Creating a new one...")
-    index = faiss.IndexFlatL2(768)  # Example for 768-d embeddings
+if uploaded_file:
+    # Extract text from PDF
+    def extract_text_from_pdf(pdf_file):
+        reader = pypdf.PdfReader(pdf_file)
+        text = ""
+        for page in reader.pages:
+            text += page.extract_text() + "\n"
+        return text
 
-# Initialize HuggingFace Embeddings
-embeddings = HuggingFaceEmbeddings()
+    # Process PDF
+    pdf_text = extract_text_from_pdf(uploaded_file)
+    st.subheader("Extracted Text:")
+    st.text_area("PDF Content", pdf_text, height=300)
 
-# Input for Query
-query = st.text_input("Enter your query:")
+    # Generate Embeddings using Sentence Transformers
+    model_name = "sentence-transformers/all-MiniLM-L6-v2"
+    st.subheader("Generating Embeddings...")
+    embeddings = HuggingFaceEmbeddings(model_name=model_name)
 
-if query:
-    st.write("Searching...")
-    query_embedding = embeddings.embed_query(query)
-    
-    # Perform FAISS search
-    D, I = index.search([query_embedding], k=5)
-    
-    st.write("Search Results:")
-    for i, idx in enumerate(I[0]):
-        st.write(f"{i+1}. Result {idx} (Distance: {D[0][i]:.4f})")
+    # Store in FAISS Vector Database
+    db = FAISS.from_texts([pdf_text], embeddings)
 
+    # User Query Input
+    query = st.text_input("Enter your search query:")
+
+    if query:
+        # Perform Similarity Search
+        results = db.similarity_search(query, k=3)
+        st.subheader("Search Results:")
+        for i, result in enumerate(results):
+            st.write(f"🔹 **Match {i+1}:** {result.page_content}")
+
+# Transformer-based Text Summarization
+st.subheader("Summarization using Transformers")
+if st.button("Summarize PDF Content"):
+    summarizer = pipeline("summarization", model="facebook/bart-large-cnn")
+    summary = summarizer(pdf_text, max_length=150, min_length=50, do_sample=False)
+    st.write("🔍 **Summary:**")
+    st.write(summary[0]['summary_text'])
+
+# Run using: streamlit run app.py
